@@ -1,3 +1,4 @@
+use std::io::Write;
 use tokio_stream::StreamExt;
 
 pub mod tts {
@@ -44,6 +45,8 @@ fn prepare_request(text: &str, token: &str) -> tonic::Request<tts::UtteranceSynt
         "authorization",
         format!("Bearer {}", token).parse().unwrap(),
     );
+    req.metadata_mut()
+        .insert("x-folder-id", "b1g8aoq1mrkk2iavp4sq".parse().unwrap());
     req
 }
 
@@ -64,10 +67,17 @@ async fn streaming_response(
         resp.metadata().keys().collect::<Vec<_>>()
     );
     let mut resp = resp.into_inner();
+    let wav = std::fs::File::create("hello_yandex.wav").expect("create audio file");
+    let mut writer = std::io::BufWriter::new(wav);
     while let Some(chunk) = resp.next().await {
         match chunk {
             Ok(resp) => match resp.audio_chunk {
-                Some(chunk) => println!("Audio chunk arrived. {} bytes.", chunk.data.len()),
+                Some(chunk) => {
+                    println!("Audio chunk arrived. {} bytes.", chunk.data.len());
+                    writer
+                        .write_all(&chunk.data)
+                        .expect("cannot write to audio file");
+                }
                 None => println!("Audio chunk is empty."),
             },
             Err(status) => println!("Error: {}", status),
