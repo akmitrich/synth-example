@@ -46,7 +46,7 @@ fn prepare_request(text: &str, token: &str) -> tonic::Request<tts::UtteranceSynt
         format!("Bearer {}", token).parse().unwrap(),
     );
     req.metadata_mut()
-        .insert("x-folder-id", "b1g8aoq1mrkk2iavp4sq".parse().unwrap());
+        .insert("x-folder-id", include_str!(".folder-id").parse().unwrap());
     req
 }
 

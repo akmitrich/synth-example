@@ -9,3 +9,6 @@
 
 ## В папке src 
 Должны находится файлы .secret и .folder-id. В файл .secret надо записать IAM-token, а в файл .folder-id соответствующий folder-id.
+
+## В случае успеха
+Результат будет сохранен в файл hello_yandex.wav.
