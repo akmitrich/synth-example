@@ -13,6 +13,18 @@ async fn main() {
 }
 
 async fn synthesize(text: &str, token: &str, tls: tonic::transport::ClientTlsConfig) {
+    let req = prepare_request(text, token);
+    let channel = connect_to_yandex(tls).await;
+    let mut stub = tts::synthesizer_client::SynthesizerClient::new(channel);
+    match stub.utterance_synthesis(req).await {
+        Ok(resp) => {
+            streaming_response(resp).await;
+        }
+        Err(status) => println!("Error in utterance_synthesis: {}", status),
+    }
+}
+
+fn prepare_request(text: &str, token: &str) -> tonic::Request<tts::UtteranceSynthesisRequest> {
     let mut req = tonic::Request::new(tts::UtteranceSynthesisRequest {
         utterance: Some(tts::utterance_synthesis_request::Utterance::Text(
             text.into(),
@@ -32,30 +44,33 @@ async fn synthesize(text: &str, token: &str, tls: tonic::transport::ClientTlsCon
         "authorization",
         format!("Bearer {}", token).parse().unwrap(),
     );
-    let channel = tonic::transport::Channel::from_static("http://tts.api.cloud.yandex.net:443")
+    req
+}
+
+async fn connect_to_yandex(tls: tonic::transport::ClientTlsConfig) -> tonic::transport::Channel {
+    tonic::transport::Channel::from_static("http://tts.api.cloud.yandex.net:443")
         .tls_config(tls)
-        .expect("TLS config")
+        .expect("TLS config must pass")
         .connect()
         .await
-        .expect("tonic Channel");
-    let mut stub = tts::synthesizer_client::SynthesizerClient::new(channel);
-    match stub.utterance_synthesis(req).await {
-        Ok(resp) => {
-            println!(
-                "Meta data keys: {:?}",
-                resp.metadata().keys().collect::<Vec<_>>()
-            );
-            let mut resp = resp.into_inner();
-            while let Some(chunk) = resp.next().await {
-                match chunk {
-                    Ok(resp) => match resp.audio_chunk {
-                        Some(chunk) => println!("Audio chunk arrived. {} bytes.", chunk.data.len()),
-                        None => println!("Audio chunk is empty."),
-                    },
-                    Err(status) => println!("Error: {}", status),
-                }
-            }
+        .expect("tonic Channel")
+}
+
+async fn streaming_response(
+    resp: tonic::Response<tonic::codec::Streaming<tts::UtteranceSynthesisResponse>>,
+) {
+    println!(
+        "Meta data keys: {:?}",
+        resp.metadata().keys().collect::<Vec<_>>()
+    );
+    let mut resp = resp.into_inner();
+    while let Some(chunk) = resp.next().await {
+        match chunk {
+            Ok(resp) => match resp.audio_chunk {
+                Some(chunk) => println!("Audio chunk arrived. {} bytes.", chunk.data.len()),
+                None => println!("Audio chunk is empty."),
+            },
+            Err(status) => println!("Error: {}", status),
         }
-        Err(status) => println!("Error in utterance_synthesis: {}", status),
     }
 }
